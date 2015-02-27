@@ -1,19 +1,19 @@
 /**
  * The MIT License (MIT)
- * 
+ *
  * Copyright (c) 2013 Christian Speckner <cnspeckn@googlemail.com>,
  *                    Torben Fitschen <teddyttn@gmail.com>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -34,6 +34,7 @@ var fs = require('fs'),
 
 var isWin = !!os.platform().match(/^win/),
     isMac = !!os.platform().match(/^darwin/),
+    dependencyArchiveDir = 'deps_archive',
     dependencyDir = 'deps',
     libxlDir = path.join(dependencyDir, 'libxl'),
     ftpHost = 'xlware.com';
@@ -199,7 +200,7 @@ var download = function(callback) {
             }
 
             writer.on('open', onOpen);
-        });        
+        });
     }
 
     ftpClient.on('error', onError);
@@ -254,15 +255,34 @@ if (!fs.existsSync(dependencyDir)) {
     fs.mkdirSync(dependencyDir);
 }
 
-download(function(archive) {
-    extractor(archive, dependencyDir, function() {
-        fs.unlinkSync(archive);
+// TODO: Make this more generic and maybe contribute back.
+// If the file is already downloaded then don't try to FTP it.
+var suffix;
+if (isWin) {
+    suffix = 'win';
+} else if(isMac) {
+    suffix = 'mac'
+} else {
+    suffix = 'lin';
+}
 
-        var extractedDir = finder(dependencyDir, /^libxl/);
-        console.log('Renaming ' + extractedDir + ' to ' + libxlDir + ' ...');
-
-        fs.renameSync(extractedDir, libxlDir);
-
-        console.log('All done!');
-    });
+var searchString = 'libxl-' + suffix;
+var selectedArchive = finder(dependencyArchiveDir, new RegExp('^' + searchString));
+extractor(selectedArchive, dependencyDir, function() {
+    var extractedDir = finder(dependencyDir, /^libxl/);
+    console.log('Renaming ' + extractedDir + ' to ' + libxlDir + ' ...');
+    fs.renameSync(extractedDir, libxlDir);
 });
+
+// download(function(archive) {
+//     extractor(archive, dependencyDir, function() {
+//         fs.unlinkSync(archive);
+
+//         var extractedDir = finder(dependencyDir, /^libxl/);
+//         console.log('Renaming ' + extractedDir + ' to ' + libxlDir + ' ...');
+
+//         fs.renameSync(extractedDir, libxlDir);
+
+//         console.log('All done!');
+//     });
+// });
