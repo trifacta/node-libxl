@@ -229,7 +229,7 @@ var extractor = function(file, target, callback) {
     if (isWin) {
         execute(path.join('tools', '7zip', '7za.exe'), ['x', file, '-o' + dependencyDir], callback);
     } else {
-        execute('tar', ['-C', dependencyDir, '-zxf', file], callback);
+        execute('tar', ['-C', dependencyDir, '--no-same-owner', '-zxf', file], callback);
     }
 };
 
