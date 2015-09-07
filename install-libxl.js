@@ -37,7 +37,8 @@ var isWin = !!os.platform().match(/^win/),
     dependencyArchiveDir = 'deps_archive',
     dependencyDir = 'deps',
     libxlDir = path.join(dependencyDir, 'libxl'),
-    ftpHost = 'xlware.com';
+    ftpHost = 'xlware.com',
+    licenseFilename = 'libxl-license.json';
 
 var download = function(callback) {
     var ftpClient = new Ftp();
@@ -248,31 +249,93 @@ var finder = function(dir, pattern) {
 
 if (fs.existsSync(libxlDir)) {
     console.log('Libxl already downloaded, nothing to do');
-    process.exit(0);
-}
-
-if (!fs.existsSync(dependencyDir)) {
-    fs.mkdirSync(dependencyDir);
-}
-
-// TODO: Make this more generic and maybe contribute back.
-// If the file is already downloaded then don't try to FTP it.
-var suffix;
-if (isWin) {
-    suffix = 'win';
-} else if(isMac) {
-    suffix = 'mac'
 } else {
-    suffix = 'lin';
+    if (!fs.existsSync(dependencyDir)) {
+        fs.mkdirSync(dependencyDir);
+    }
+
+    // TODO: Make this more generic and maybe contribute back.
+    // If the file is already downloaded then don't try to FTP it.
+    var suffix;
+    if (isWin) {
+        suffix = 'win';
+    } else if(isMac) {
+        suffix = 'mac'
+    } else {
+        suffix = 'lin';
+    }
+
+    var searchString = 'libxl-' + suffix;
+    var selectedArchive = finder(dependencyArchiveDir, new RegExp('^' + searchString));
+    extractor(selectedArchive, dependencyDir, function() {
+        var extractedDir = finder(dependencyDir, /^libxl/);
+        console.log('Renaming ' + extractedDir + ' to ' + libxlDir + ' ...');
+        fs.renameSync(extractedDir, libxlDir);
+    });
 }
 
-var searchString = 'libxl-' + suffix;
-var selectedArchive = finder(dependencyArchiveDir, new RegExp('^' + searchString));
-extractor(selectedArchive, dependencyDir, function() {
-    var extractedDir = finder(dependencyDir, /^libxl/);
-    console.log('Renaming ' + extractedDir + ' to ' + libxlDir + ' ...');
-    fs.renameSync(extractedDir, libxlDir);
-});
+// Search up the tree for libxl-license.json from which to retrieve license keys
+var searchDir = path.resolve(__dirname);
+var licensePath = null;
+
+while (!licensePath) {
+    var parentDir = path.resolve(path.join(searchDir, '..'));
+
+    // If we haven't found a license file and we're at the top of the filesystem
+    // tree, we'll never find it
+    if (parentDir == searchDir) {
+        console.log('Cannot locate libxl-license.json; terminating');
+        process.exit(1);
+    }
+
+    if (fs.existsSync(path.join(searchDir, licenseFilename))) {
+        licensePath = path.join(searchDir, licenseFilename);
+    } else {
+        searchDir = parentDir;
+    }
+}
+
+console.log('Applying licenses from "' + licensePath + '"');
+var licenses = JSON.parse(fs.readFileSync(licensePath, 'utf-8'));
+
+/**
+ * We expect libxl-license.json to look like this:
+ *
+ * {
+ *   "licensee": "Your organization's name",
+ *   "keys": {
+ *     "mac": "your mac key",
+ *     "windows": "your windows key",
+ *     "linux": "your linux key"
+ *   }
+ * }
+ */
+
+var license;
+
+if (isWin) {
+    license = licenses['keys']['windows'];
+} else if (isMac) {
+    license = licenses['keys']['mac'];
+} else {
+    license = licenses['keys']['linux'];
+}
+
+if (!license) {
+    console.log('Cannot find the license key appropriate for this ' +
+                'platform in libxl-license.json');
+    process.exit(1);
+}
+
+if (!('licensee' in licenses)) {
+    console.log('Must specify a licensee in libxl-license.json');
+}
+
+var apiKeyFileContents = '#define INCLUDE_API_KEY 1\n' +
+        '#define API_KEY_NAME "' + licenses['licensee'] + '"\n' +
+        '#define API_KEY_KEY "' + license + '"\n';
+
+fs.writeFileSync(path.join(__dirname, 'src', 'api_key.h'), apiKeyFileContents);
 
 // download(function(archive) {
 //     extractor(archive, dependencyDir, function() {
