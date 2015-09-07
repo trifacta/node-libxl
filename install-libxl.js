@@ -281,16 +281,16 @@ var licensePath = null;
 while (!licensePath) {
     var parentDir = path.resolve(path.join(searchDir, '..'));
 
-    // If we haven't found a license file and we're at the top of the filesystem
-    // tree, we'll never find it
-    if (parentDir == searchDir) {
-        console.log('Cannot locate libxl-license.json; terminating');
-        process.exit(1);
-    }
-
     if (fs.existsSync(path.join(searchDir, licenseFilename))) {
         licensePath = path.join(searchDir, licenseFilename);
     } else {
+        // If we haven't found a license file and we're at the top of the filesystem
+        // tree, we'll never find it
+        if (parentDir == searchDir) {
+            console.log('Cannot locate libxl-license.json; terminating');
+            process.exit(1);
+        }
+
         searchDir = parentDir;
     }
 }
